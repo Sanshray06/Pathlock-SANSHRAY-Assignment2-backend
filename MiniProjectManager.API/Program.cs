@@ -52,7 +52,7 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ISchedulerService, SchedulerService>();
 
 // ---------------------- CORS CONFIG ----------------------
-var frontendUrl ="https://pathlock-sanshray-assignment2-front.vercel.app/";
+var frontendUrl ="https://pathlock-sanshray-assignment2-front.vercel.app";
 
 builder.Services.AddCors(options =>
 {
