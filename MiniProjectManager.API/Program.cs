@@ -11,10 +11,12 @@ using MiniProjectManager.API.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
+// ---------------------- SERVICES ----------------------
+
+// Add controllers
 builder.Services.AddControllers();
 
-// Configure Database
+// Configure Database (SQLite)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -42,24 +44,24 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Register services
+// Register app services
 builder.Services.AddScoped<JwtHelper>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ISchedulerService, SchedulerService>();
 
-// Configure CORS - UPDATED FOR PRODUCTION
+// ---------------------- CORS CONFIG ----------------------
+var frontendUrl = builder.Configuration["FrontendUrl"] ?? "https://pathlock-sanshray-assignment2-frontend-2oebzbr29.vercel.app";
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        // Get frontend URL from environment variable or use defaults
         policy.WithOrigins(
+            frontendUrl,
             "http://localhost:3000",
-            "http://localhost:5173",
-            "https://pathlock-sanshray-assignment2-front.vercel.app",
-            "https://*.vercel.app" // Allow all Vercel preview deployments
+            "http://localhost:5173"
         )
         .AllowAnyHeader()
         .AllowAnyMethod()
@@ -67,7 +69,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Configure Swagger
+// ---------------------- SWAGGER ----------------------
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -78,10 +80,10 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API for managing projects and tasks with JWT authentication"
     });
 
-    // Add JWT Authentication to Swagger
+    // JWT support in Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token in the text input below.",
+        Description = "Enter 'Bearer' followed by your token",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -104,76 +106,47 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// ---------------------- BUILD APP ----------------------
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-// Enable Swagger in all environments for testing
+// Swagger for all environments
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mini Project Manager API V1");
-    c.RoutePrefix = "swagger"; // Access at /swagger
+    c.RoutePrefix = "swagger";
 });
 
-// Use custom exception handling middleware
+// Global error handler
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// For Render deployment - listen on the correct port
+// Listen on Render’s assigned port
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 app.Urls.Add($"http://0.0.0.0:{port}");
 
-// Enable CORS
+// ---------------------- MIDDLEWARE PIPELINE ----------------------
+app.UseRouting();
 app.UseCors("AllowFrontend");
-
-// Enable Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Initialize database
+// ---------------------- DB INIT ----------------------
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
     try
     {
         var context = services.GetRequiredService<AppDbContext>();
-        
-        // Ensure database is created
-        context.Database.EnsureCreated();
-        
-        // For production, use migrations
-        // context.Database.Migrate();
-        
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Database initialized successfully");
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while initializing the database.");
-        throw; // Re-throw to prevent app from starting with broken database
-    }
-}
-
-// Initialize database and seed data
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<AppDbContext>();
-
-        // Run migrations (optional, if not using EnsureCreated)
-        // context.Database.Migrate();
-
-        // Initialize and seed data
+        context.Database.EnsureCreated(); // creates DB if missing
         MiniProjectManager.API.Data.DbInitializer.Initialize(services);
+        logger.LogInformation("✅ Database initialized successfully.");
     }
     catch (Exception ex)
     {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while initializing the database.");
+        logger.LogError(ex, "❌ An error occurred while initializing the database.");
     }
 }
 
