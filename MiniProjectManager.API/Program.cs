@@ -58,7 +58,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
             "http://localhost:3000",
             "http://localhost:5173",
-            "https://pathlock-sanshray-assignment2-front.vercel.app"
+            "https://pathlock-sanshray-assignment2-front.vercel.app",
             "https://*.vercel.app" // Allow all Vercel preview deployments
         )
         .AllowAnyHeader()
